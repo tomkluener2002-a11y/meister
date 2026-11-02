@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Finanzen</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--fg:#e8eaf0;--mut:#8b91a1;--ac:#5aa9ff;--neg:#ff6b6b;--pos:#4cd08a;--bd:#262a35}
+*{box-sizing:border-box}body{margin:0;font:15px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:1100px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 10px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.kpi{font-size:26px;font-weight:700}.neg{color:var(--neg)}.pos{color:var(--pos)}.mut{color:var(--mut)}
+select,input,button{background:#0f1115;color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;font:inherit}
+button{cursor:pointer;background:var(--ac);color:#04121f;border:0;font-weight:600}
+table{width:100%;border-collapse:collapse}td,th{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12px}td.r,th.r{text-align:right;white-space:nowrap}
+.bar{height:6px;background:var(--ac);border-radius:3px;margin-top:3px}
+.tabs button{background:var(--card);color:var(--fg);border:1px solid var(--bd);margin-right:6px}.tabs button.on{background:var(--ac);color:#04121f}
+#login{max-width:340px;margin:20vh auto;text-align:center}#login input{width:100%;margin:10px 0}
+.hide{display:none}.scroll{max-height:520px;overflow:auto}
+</style></head><body><main>
+<div id="login" class="card"><h1>Finanzen</h1><p class="mut">Login per Magic-Link</p>
+<input id="email" type="email" placeholder="E-Mail" autocomplete="email"><button id="send" style="width:100%">Link senden</button><p id="msg" class="mut"></p></div>
+<div id="app" class="hide">
+<header><h1>Finanzen</h1><div><select id="month"></select> <button id="out" style="background:var(--card);color:var(--mut);border:1px solid var(--bd)">Logout</button></div></header>
+<div class="tabs" style="margin-bottom:14px"><button data-t="over" class="on">Übersicht</button><button data-t="tx">Buchungen</button><button data-t="con">Verträge</button><button data-t="acc">Konten</button><button data-t="keg">Kegelkasse</button></div>
+<section id="t-over">
+<div class="grid"><div class="card"><h2>Einnahmen</h2><div class="kpi pos" id="k-in"></div></div><div class="card"><h2>Ausgaben (mein Anteil)</h2><div class="kpi neg" id="k-out"></div></div><div class="card"><h2>Saldo</h2><div class="kpi" id="k-net"></div></div></div>
+<div class="grid"><div class="card"><h2>Ausgaben nach Kategorie</h2><div id="cats"></div></div><div class="card"><h2>Verlauf (Einnahmen / Ausgaben)</h2><canvas id="trend"></canvas></div></div>
+</section>
+<section id="t-tx" class="hide"><div class="card"><input id="q" placeholder="Suchen…" style="width:100%;margin-bottom:10px"><select id="fcat"><option value="">alle Kategorien</option></select>
+<label class="mut"><input type="checkbox" id="ftr"> Umbuchungen zeigen</label><div class="scroll"><table><thead><tr><th>Datum</th><th>Gegenpartei</th><th>Kategorie</th><th class="r">Betrag</th><th class="r">Mein Anteil</th></tr></thead><tbody id="txb"></tbody></table></div></div></section>
+<section id="t-con" class="hide"><div class="card"><h2>Wiederkehrende Zahlungen</h2><table><thead><tr><th>Vertrag</th><th>Kategorie</th><th class="r">Betrag</th><th>Zuletzt</th></tr></thead><tbody id="conb"></tbody></table><p class="mut" id="contot"></p></div></section>
+<section id="t-acc" class="hide"><div class="card"><h2>Konten</h2><table><thead><tr><th>Bank</th><th>Konto</th><th>Anteil</th><th class="r">Saldo</th></tr></thead><tbody id="accb"></tbody></table></div></section>
+<section id="t-keg" class="hide"><div class="card"><h2>Kegelkasse (Revolut) – getrennt</h2><div class="kpi" id="kegsum"></div><div class="scroll"><table><tbody id="kegb"></tbody></table></div></div></section>
+</div></main>
+<script>
+const sb=supabase.createClient('https://wyxxqmopsenpvxmmtvsp.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5eHhxbW9wc2VucHZ4bW10dnNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2MTM4NzcsImV4cCI6MjEwOTE4OTg3N30.yivRwyHxPKB9BJ8tsgyCyBvoGicV9FZHlVIOvTnIeJU');
+const OWNER='tomkluener2002@gmail.com',$=s=>document.querySelector(s);
+const eur=n=>(n<0?'−':'')+Math.abs(n).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+const cls=n=>n<0?'neg':'pos';let TX=[],ACC=[],CAT={},chart;
+async function page(t,sel='*',ord){let all=[],o=0;for(;;){let q=sb.from(t).select(sel).range(o,o+999);if(ord)q=q.order(ord,{ascending:false});const{data,error}=await q;if(error)throw error;all=all.concat(data);if(data.length<1000)return all;o+=1000}}
+async function init(){const{data:{session}}=await sb.auth.getSession();
+ if(!session||session.user.email!==OWNER){$('#login').classList.remove('hide');$('#app').classList.add('hide');return}
+ $('#login').classList.add('hide');$('#app').classList.remove('hide');
+ [TX,ACC]=await Promise.all([page('transactions','*','booking_date'),page('accounts')]);
+ (await page('categories')).forEach(c=>CAT[c.name]=c);
+ const ms=[...new Set(TX.map(t=>t.booking_date.slice(0,7)))].sort().reverse();
+ $('#month').innerHTML='<option value="all">Alle Monate</option>'+ms.map(m=>'<option>'+m+'</option>').join('');
+ if(ms.length)$('#month').value=ms[0];
+ $('#fcat').innerHTML+=Object.keys(CAT).sort().map(c=>'<option>'+c+'</option>').join('');
+ render();loadCon();
+}
+const inMonth=t=>$('#month').value==='all'||t.booking_date.startsWith($('#month').value);
+const esc=s=>(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function render(){
+ const p=TX.filter(t=>t.scope==='personal'&&!t.is_transfer&&inMonth(t));
+ const inc=p.filter(t=>t.my_share>0).reduce((a,t)=>a+t.my_share,0),out=p.filter(t=>t.my_share<0).reduce((a,t)=>a+t.my_share,0);
+ $('#k-in').textContent=eur(inc);$('#k-out').textContent=eur(out);$('#k-net').textContent=eur(inc+out);$('#k-net').className='kpi '+cls(inc+out);
+ const by={};p.filter(t=>t.my_share<0).forEach(t=>by[t.category]=(by[t.category]||0)+t.my_share);
+ const rows=Object.entries(by).sort((a,b)=>a[1]-b[1]),mx=rows.length?Math.abs(rows[0][1]):1;
+ $('#cats').innerHTML=rows.map(([c,v])=>'<div><div style="display:flex;justify-content:space-between"><span>'+esc(c)+'</span><span class="neg">'+eur(v)+'</span></div><div class="bar" style="width:'+Math.abs(v)/mx*100+'%;background:'+((CAT[c]||{}).color||'#5aa9ff')+'"></div></div>').join('')||'<p class="mut">Keine Ausgaben</p>';
+ const ms={};TX.filter(t=>t.scope==='personal'&&!t.is_transfer).forEach(t=>{const m=t.booking_date.slice(0,7);ms[m]=ms[m]||[0,0];ms[m][t.my_share>0?0:1]+=t.my_share});
+ const k=Object.keys(ms).sort();if(chart)chart.destroy();
+ chart=new Chart($('#trend'),{type:'bar',data:{labels:k,datasets:[{label:'Einnahmen',data:k.map(m=>ms[m][0]),backgroundColor:'#4cd08a'},{label:'Ausgaben',data:k.map(m=>-ms[m][1]),backgroundColor:'#ff6b6b'}]},options:{plugins:{legend:{labels:{color:'#e8eaf0'}}},scales:{x:{ticks:{color:'#8b91a1'}},y:{ticks:{color:'#8b91a1'},grid:{color:'#262a35'}}}}});
+ txList();
+ $('#accb').innerHTML=ACC.sort((a,b)=>a.bank.localeCompare(b.bank)).map(a=>'<tr><td>'+esc(a.bank)+'</td><td>'+esc(a.name)+' …'+esc(a.iban_tail)+'</td><td>'+(a.owner==='shared'?'50 %':a.owner==='kegelkasse'?'Kegelkasse':'100 %')+'</td><td class="r">'+(a.balance==null?'–':eur(a.balance))+'</td></tr>').join('');
+ const kg=TX.filter(t=>t.scope==='kegelkasse'),bal=ACC.filter(a=>a.owner==='kegelkasse').reduce((s,a)=>s+(a.balance||0),0);
+ $('#kegsum').textContent='Saldo '+eur(bal);
+ $('#kegb').innerHTML=kg.slice(0,150).map(t=>'<tr><td>'+t.booking_date+'</td><td>'+esc(t.counterparty)+'</td><td class="r '+cls(t.amount)+'">'+eur(t.amount)+'</td></tr>').join('');
+}
+function txList(){const q=$('#q').value.toLowerCase(),c=$('#fcat').value,tr=$('#ftr').checked;
+ $('#txb').innerHTML=TX.filter(t=>t.scope==='personal'&&inMonth(t)&&(tr||!t.is_transfer)&&(!c||t.category===c)&&((t.counterparty+' '+t.remittance).toLowerCase().includes(q))).slice(0,400)
+ .map(t=>'<tr><td>'+t.booking_date+'</td><td>'+esc(t.counterparty)+'<div class="mut" style="font-size:12px">'+esc((t.remittance||'').slice(0,70))+'</div></td><td>'+esc(t.category)+'</td><td class="r '+cls(t.amount)+'">'+eur(t.amount)+'</td><td class="r">'+(t.is_transfer?'<span class="mut">Umbuchung</span>':eur(t.my_share))+'</td></tr>').join('')}
+async function loadCon(){const c=await page('contracts');let s=0;
+ $('#conb').innerHTML=c.sort((a,b)=>b.amount-a.amount).map(x=>{s+=x.interval==='monthly'?x.amount:0;return'<tr><td>'+esc(x.name)+(x.note?'<div class="mut" style="font-size:12px">'+esc(x.note)+'</div>':'')+'</td><td>'+esc(x.category)+'</td><td class="r">'+eur(-x.amount)+'</td><td>'+(x.last_seen||'')+'</td></tr>'}).join('');
+ $('#contot').textContent='Summe monatlich: '+eur(-s)+' (Gemeinschaftskonto ggf. 100 %-Beträge)'}
+$('#month').onchange=render;['#q','#fcat','#ftr'].forEach(s=>$(s).oninput=txList);
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));['over','tx','con','acc','keg'].forEach(t=>$('#t-'+t).classList.toggle('hide',t!==b.dataset.t))});
+$('#send').onclick=async()=>{const e=$('#email').value.trim();if(e.toLowerCase()!==OWNER){$('#msg').textContent='Nicht erlaubt.';return}
+ const{error}=await sb.auth.signInWithOtp({email:e,options:{emailRedirectTo:location.origin+location.pathname,shouldCreateUser:false}});$('#msg').textContent=error?error.message:'Link ist unterwegs – Mail prüfen.'};
+$('#out').onclick=async()=>{await sb.auth.signOut();location.reload()};
+sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_IN')init()});init();
+</script></body></html>
