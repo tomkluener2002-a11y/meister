@@ -247,7 +247,7 @@ function puffer(){
   const nowM=new Date().toISOString().slice(0,7);
   const first=S.tx.reduce((a,t)=>t.booking_date<a?t.booking_date:a,'9999-99-99');
   let ms=Object.keys(by).sort().filter(m=>m!==nowM);
-  if(ms.length>1&&ms[0]===first.slice(0,7)&&+first.slice(8,10)>5)ms=ms.slice(1);
+  if(ms.length>1&&ms[0]===first.slice(0,7)&&+first.slice(8,10)>1)ms=ms.slice(1);
   ms=ms.slice(-3);if(!ms.length)return null;
   const avg=k=>ms.reduce((a,m)=>a+by[m][k],0)/ms.length;
   const sal=avg('sal'),out=avg('out');
@@ -272,7 +272,7 @@ function renderHero(){
   requestAnimationFrame(()=>requestAnimationFrame(()=>$('#pf-bar').querySelectorAll('span').forEach(s=>s.style.width=s.dataset.w+'%')));
   const row=(c,l,v)=>`<div><span class="sw" style="background:${c}"></span>${l}<b>${v}</b></div>`;
   $('#pf-leg').innerHTML=row('transparent','Gehalt (netto, Ø)',eur(p.sal,0))+row('#f3eddc','Verträge &amp; Fixkosten','−'+eur(p.fix,0).replace('−',''))+row('#d9a948','Alltag (Essen, Einkauf, Freizeit …)','−'+eur(p.vari,0).replace('−',''))+row(p.frei<0?'#ffb39e':'#8fe0b4',p.frei<0?'Fehlbetrag':'Frei',eur(p.frei,0));
-  $('#pf-note').innerHTML=`Fixkosten enthalten ${eur(p.yearly,0)} Rücklage für Jahresbeiträge. Gehalt ohne Steuererstattung. Die Kreditkarte (easybank) ist noch nicht angebunden und erscheint nur als Sammelabbuchung.`;
+  $('#pf-note').innerHTML=`Fixkosten enthalten ${eur(p.yearly,0)} Rücklage für Jahresbeiträge. Gehalt ohne Steuererstattung. Der unvollständige Startmonat der Bankdaten zählt nicht mit. Die Kreditkarte (easybank) ist noch nicht angebunden und erscheint nur als Sammelabbuchung.`;
 }
 
 /* ---------- Übersicht ---------- */
@@ -346,7 +346,7 @@ function renderAcc(){
   const banks=['volksbank','dkb','c24'].filter(b=>mine.some(a=>a.bank===b));
   let h=`<div class="card net rise"><span class="eyebrow">Vermögen · dein Anteil</span><div class="v">${eur(net,0)}</div><div class="sm mut">Konten und Pockets, Gemeinschaftskonto zu 50 %</div></div>`;
   banks.forEach(b=>{const l=mine.filter(a=>a.bank===b).sort((x,y)=>(y.balance||0)-(x.balance||0)),s=l.reduce((a,x)=>a+(x.balance||0)*(x.share??1),0);
-    h+=`<div class="card"><div class="bank"><h3>${BANK[b]}</h3><span class="mut">${eur(s,0)}</span></div>${l.map(a=>`<div class="acc"><div><div style="font-weight:500">${esc(a.name)}</div><div class="sm mut">…${esc(a.iban_tail||'')}${a.owner==='shared'?' <span class="chip sh" style="margin-left:6px">50 %</span>':''}</div></div><div class="am">${a.balance==null?'–':eur(a.balance)}</div></div>`).join('')}</div>`});
+    h+=`<div class="card"><div class="bank"><h3>${BANK[b]}</h3><span class="mut">${eur(s,0)}</span></div>${l.map(a=>`<div class="acc"><div><div style="font-weight:500">${a.owner==='shared'?'Gemeinschaftskonto':esc(a.name)}</div><div class="sm mut">…${esc(a.iban_tail||'')}${a.owner==='shared'?' <span class="chip sh" style="margin-left:6px">50 %</span>':''}</div></div><div class="am">${a.balance==null?'–':eur(a.balance)}</div></div>`).join('')}</div>`});
   const keg=S.acc.filter(a=>a.owner==='kegelkasse').reduce((a,x)=>a+(x.balance||0),0),kt=S.tx.filter(t=>t.scope==='kegelkasse').slice(0,25);
   h+=`<div class="sec-h"><h2>Kegelkasse</h2><span class="sm mut">Revolut · getrennt, nicht in deinen Zahlen</span></div><div class="card"><div class="bank"><h3 style="font-size:26px">${eur(keg)}</h3><span class="sm mut">Saldo</span></div>${kt.map(t=>`<div class="acc"><div style="min-width:0"><div style="font-weight:500">${esc(t.counterparty||'–')}</div><div class="sm mut">${esc(dlabel(t.booking_date))}${t.remittance?' · '+esc(t.remittance.slice(0,40)):''}</div></div><div class="am ${t.amount<0?'':'pos'}">${eur(t.amount)}</div></div>`).join('')}</div>`;
   $('#v-acc').innerHTML=h;
